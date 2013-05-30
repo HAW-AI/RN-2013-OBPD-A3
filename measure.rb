@@ -58,6 +58,6 @@ end
 window_sizes_results.each do |wrk, wrv|
   puts "Window size: #{wrk}"
   wrv.each do |erk, erv|
-    puts "  Error rate: #{erk}. Average time over 3 attempts: #{erv}"
+    puts "  Error rate: #{erk}. Average time over 3 attempts: #{erv}ms"
   end
 end
