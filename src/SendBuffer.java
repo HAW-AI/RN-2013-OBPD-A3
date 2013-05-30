@@ -23,26 +23,26 @@ public class SendBuffer {
 	}
 
 	void receivedAck(int i, long timeReceived) {
-		if (i >= 0 && i < packetList.size()) {
-			fc.testOut("Received ack for :" + i + " (sendBase:" + sendBase + ")");
-			FCpacket packet = packetList.get(i);
-			fc.cancelTimer(packet);
-			if(packet.getTimestamp() < timeReceived){
-				fc.computeTimeoutValue(timeReceived - packet.getTimestamp());
-			}
-			packet.setValidACK(true);
-			if (i == sendBase) {
-				while (packetList.get(sendBase).isValidACK()
-						&& sendBase + windowSize < packetList.size()) {
-					sendBase += 1;
-					final int currentSendBase=sendBase;
-					new Thread(){
-						public void run() {
-							sendPacket(packetList.get(currentSendBase + windowSize - 1));
-						};
-					}.start();
-					
-				}
+		fc.testOut("Received ack for :" + i + " (sendBase:" + sendBase + ")");
+		FCpacket packet = packetList.get(i);
+		packet.setValidACK(true);
+		fc.cancelTimer(packet);
+		if(packet.getTimestamp() < timeReceived){
+			fc.computeTimeoutValue(timeReceived - packet.getTimestamp());
+		}
+		else{
+			fc.invalidRtts++;
+		}
+		if (i == sendBase) {
+			while (packetList.get(sendBase).isValidACK()
+					&& sendBase + windowSize < packetList.size()) {
+				sendBase += 1;
+				final int currentSendBase=sendBase;
+				new Thread(){
+					public void run() {
+						sendPacket(packetList.get(currentSendBase + windowSize - 1));
+					};
+				}.start();
 			}
 		}
 	}
@@ -53,21 +53,21 @@ public class SendBuffer {
 				packet.getSeqNumBytesAndData().length, server,
 				FileCopyServer.SERVER_PORT);
 		fc.testOut("Sending packet: " + packet.getSeqNum());
-		packet.setTimestamp(System.nanoTime());
-		fc.startTimer(packet);
 		try {
 			socket.send(outgoing);
 		} catch (IOException e) {
 			fc.testOut("Error sending packet: " + e.getMessage());
 		}
+		if(!packet.isValidACK()){
+			packet.setTimestamp(System.nanoTime());
+			fc.startTimer(packet);
+		}
 	}
 
 	void sendPacket(long seqNum) {
-		if (seqNum >= 0 && seqNum < packetList.size()) {
-			FCpacket packet = packetList.get((int) seqNum);
-			if (!packet.isValidACK()) {
-				sendPacket(packet);
-			}
+		FCpacket packet = packetList.get((int) seqNum);
+		if (!packet.isValidACK()) {
+			sendPacket(packet);
 		}
 	}
 

@@ -44,7 +44,7 @@ public class FileCopyClient extends Thread {
 	
 	private long noOfTimersTimedOut=0;
 	
-	private boolean finished=false;
+	public long invalidRtts=0;
 
 	// Constructor
 	public FileCopyClient(String serverArg, String sourcePathArg,
@@ -79,11 +79,11 @@ public class FileCopyClient extends Thread {
 			Date stopTime=new Date();
 			if (!socket.isClosed())
 				socket.close();
-			finished=true;
 			System.out.println("Done");
 			System.out.println("Transfering the file took " + (stopTime.getTime()-startTime.getTime()) + " ms");
 			System.out.println("No of timers timed out: " + noOfTimersTimedOut);
-			System.out.println("Average RTT: " + sumOfRtts/Long.valueOf(noOfRtts).doubleValue());
+			System.out.println("Average RTT: " + sumOfRtts/noOfRtts);
+			System.out.println("Invalid RTTs: " + invalidRtts);
 		} catch (SocketException e) {
 			e.printStackTrace();
 		} catch (UnknownHostException e) {
@@ -106,7 +106,6 @@ public class FileCopyClient extends Thread {
 	public void cancelTimer(FCpacket packet) {
 		/* Cancel timer for the given FCpacket */
 		testOut("Cancel Timer for packet" + packet.getSeqNum());
-
 		if (packet.getTimer() != null) {
 			packet.getTimer().interrupt();
 		}
