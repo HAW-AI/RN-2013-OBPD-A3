@@ -3,7 +3,6 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.List;
-import java.util.logging.Logger;
 
 public class SendBuffer {
 
@@ -13,7 +12,6 @@ public class SendBuffer {
 	private final FileCopyClient fc;
 	private int sendBase = 0;
 	private final InetAddress server;
-	private final Logger LOG = Logger.getLogger(SendBuffer.class.getName());
 
 	public SendBuffer(DatagramSocket socket, List<FCpacket> packetList,
 			int windowSize, InetAddress server, FileCopyClient fc) {
@@ -24,9 +22,9 @@ public class SendBuffer {
 		this.server = server;
 	}
 
-	synchronized void receivedAck(int i, long timeReceived) {
+	void receivedAck(int i, long timeReceived) {
 		if (i >= 0 && i < packetList.size()) {
-			LOG.info("Received ack for :" + i + " (sendBase:" + sendBase + ")");
+			fc.testOut("Received ack for :" + i + " (sendBase:" + sendBase + ")");
 			FCpacket packet = packetList.get(i);
 			fc.cancelTimer(packet);
 			if(packet.getTimestamp() < timeReceived){
@@ -54,13 +52,13 @@ public class SendBuffer {
 		outgoing = new DatagramPacket(packet.getSeqNumBytesAndData(),
 				packet.getSeqNumBytesAndData().length, server,
 				FileCopyServer.SERVER_PORT);
-		LOG.info("Sending packet: " + packet.getSeqNum());
+		fc.testOut("Sending packet: " + packet.getSeqNum());
 		packet.setTimestamp(System.nanoTime());
 		fc.startTimer(packet);
 		try {
 			socket.send(outgoing);
 		} catch (IOException e) {
-			LOG.warning("Error sending packet: " + e.getMessage());
+			fc.testOut("Error sending packet: " + e.getMessage());
 		}
 	}
 

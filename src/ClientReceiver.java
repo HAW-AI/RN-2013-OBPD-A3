@@ -2,13 +2,11 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.util.logging.Logger;
 
 public class ClientReceiver extends Thread {
 
 	private final DatagramSocket socket;
 	private final SendBuffer buffer;
-	private final Logger LOG = Logger.getLogger(ClientReceiver.class.getName());
 
 	public ClientReceiver(DatagramSocket socket, SendBuffer buffer) {
 		this.socket = socket;
@@ -32,7 +30,7 @@ public class ClientReceiver extends Thread {
 				}.start();
 			} catch (IOException e) {
 				if (!isInterrupted())
-					LOG.warning("Error receiving packet: " + e.getMessage());
+					System.err.println("Error receiving packet: " + e.getMessage());
 			}
 
 		}

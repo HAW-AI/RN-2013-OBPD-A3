@@ -4,12 +4,8 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 public class FileCopyUtils {
-
-	private static final Logger LOG = Logger.getLogger(FileCopyUtils.class
-			.getName());
 
 	private FileCopyUtils() {
 	}
@@ -31,10 +27,10 @@ public class FileCopyUtils {
 				}
 				f.close();
 			} catch (FileNotFoundException e) {
-				LOG.warning("File not found : " + e.getMessage());
+				System.err.println("File not found : " + e.getMessage());
 				return result;
 			} catch (IOException e) {
-				LOG.warning("Cannot read file : " + e.getMessage());
+				System.err.println("Cannot read file : " + e.getMessage());
 			}
 
 		}

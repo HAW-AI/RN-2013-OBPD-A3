@@ -4,11 +4,14 @@
  Autoren:
  */
 
-import java.io.*;
-import java.net.*;
+import java.io.UnsupportedEncodingException;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
-import java.util.logging.Logger;
 
 public class FileCopyClient extends Thread {
 
@@ -35,8 +38,13 @@ public class FileCopyClient extends Thread {
 	private long timeoutValue = 100000000L;
 
 	private SendBuffer buffer;
-
-	private Logger LOG = Logger.getLogger(FileCopyClient.class.getName());
+	
+	private long sumOfRtts=0;
+	private long noOfRtts=0;
+	
+	private long noOfTimersTimedOut=0;
+	
+	private boolean finished=false;
 
 	// Constructor
 	public FileCopyClient(String serverArg, String sourcePathArg,
@@ -60,6 +68,7 @@ public class FileCopyClient extends Thread {
 			DatagramSocket socket = new DatagramSocket();
 			this.buffer = new SendBuffer(socket, packetList, windowSize,
 					server, this);
+			Date startTime=new Date();
 			buffer.sendFirstWindow();
 			ClientReceiver receiver = new ClientReceiver(socket, buffer);
 			receiver.setDaemon(true);
@@ -67,9 +76,14 @@ public class FileCopyClient extends Thread {
 			while (!buffer.isFinished()) {
 			}
 			receiver.interrupt();
+			Date stopTime=new Date();
 			if (!socket.isClosed())
 				socket.close();
-			LOG.info("Done");
+			finished=true;
+			System.out.println("Done");
+			System.out.println("Transfering the file took " + (stopTime.getTime()-startTime.getTime()) + " ms");
+			System.out.println("No of timers timed out: " + noOfTimersTimedOut);
+			System.out.println("Average RTT: " + sumOfRtts/Long.valueOf(noOfRtts).doubleValue());
 		} catch (SocketException e) {
 			e.printStackTrace();
 		} catch (UnknownHostException e) {
@@ -77,7 +91,7 @@ public class FileCopyClient extends Thread {
 		}
 
 	}
-
+	
 	/**
 	 * 
 	 * Timer Operations
@@ -102,6 +116,7 @@ public class FileCopyClient extends Thread {
 	 * Implementation specific task performed at timeout
 	 */
 	public void timeoutTask(long seqNum) {
+		noOfTimersTimedOut++;
 		buffer.sendPacket(seqNum);
 	}
 
@@ -110,9 +125,11 @@ public class FileCopyClient extends Thread {
 	 * Computes the current timeout value (in nanoseconds)
 	 */
 	public void computeTimeoutValue(long sampleRTT) {
+		sumOfRtts+=sampleRTT;
+		noOfRtts++;
 		timeoutValue = Double.valueOf(
 				(1 - 0.1) * timeoutValue + 0.1 * sampleRTT).longValue();
-		LOG.info("New timeout value: " + timeoutValue);
+		testOut("New timeout value: " + timeoutValue);
 	}
 
 	/**
