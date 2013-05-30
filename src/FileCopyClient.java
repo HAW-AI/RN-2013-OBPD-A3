@@ -84,6 +84,7 @@ public class FileCopyClient extends Thread {
 			System.out.println("No of timers timed out: " + noOfTimersTimedOut);
 			System.out.println("Average RTT: " + sumOfRtts/noOfRtts);
 			System.out.println("Invalid RTTs: " + invalidRtts);
+			System.out.println("Last timeout value: " + timeoutValue);
 		} catch (SocketException e) {
 			e.printStackTrace();
 		} catch (UnknownHostException e) {

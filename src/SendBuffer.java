@@ -27,27 +27,26 @@ public class SendBuffer {
 		FCpacket packet = packetList.get(i);
 		packet.setValidACK(true);
 		fc.cancelTimer(packet);
-		if(packet.getTimestamp() < timeReceived){
-			fc.computeTimeoutValue(timeReceived - packet.getTimestamp());
+		long timestamp=packet.getTimestamp();
+		if(timestamp < timeReceived){
+			fc.computeTimeoutValue(timeReceived - timestamp);
 		}
 		else{
 			fc.invalidRtts++;
 		}
-		if (i == sendBase) {
-			while (packetList.get(sendBase).isValidACK()
-					&& sendBase + windowSize < packetList.size()) {
-				sendBase += 1;
-				final int currentSendBase=sendBase;
-				new Thread(){
-					public void run() {
-						sendPacket(packetList.get(currentSendBase + windowSize - 1));
-					};
-				}.start();
+		synchronized(this){
+			if (i == sendBase) {	
+				while (packetList.get(sendBase).isValidACK()
+						&& sendBase + windowSize < packetList.size()) {
+					sendBase += 1;
+					final int currentSendBase=sendBase;
+					sendPacket(packetList.get(currentSendBase + windowSize - 1));
+				}
 			}
 		}
 	}
 
-	synchronized void sendPacket(FCpacket packet) {
+	void sendPacket(FCpacket packet) {
 		DatagramPacket outgoing;
 		outgoing = new DatagramPacket(packet.getSeqNumBytesAndData(),
 				packet.getSeqNumBytesAndData().length, server,

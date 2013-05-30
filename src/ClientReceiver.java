@@ -22,13 +22,8 @@ public class ClientReceiver extends Thread {
 			try {
 				socket.receive(receivePacket);
 				final byte[] data = receivePacket.getData();
-				
-				new Thread() {
-					public void run() {
-						long timeReceived=System.nanoTime();		
-						buffer.receivedAck(new BigInteger(data).intValue(),timeReceived);
-					};
-				}.start();
+				long timeReceived=System.nanoTime();		
+				buffer.receivedAck(new BigInteger(data).intValue(),timeReceived);
 			} catch (IOException e) {
 				if (!isInterrupted())
 					System.err.println("Error receiving packet: " + e.getMessage());
