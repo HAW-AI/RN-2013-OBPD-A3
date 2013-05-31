@@ -1,25 +1,24 @@
-import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
-public class SendBuffer {
+public class SendBuffer extends Thread {
 
-	private final DatagramSocket socket;
 	private final List<FCpacket> packetList;
 	private final int windowSize;
 	private final FileCopyClient fc;
 	private int sendBase = 0;
-	private final InetAddress server;
+	private final ClientReceiver receiver;
 
-	public SendBuffer(DatagramSocket socket, List<FCpacket> packetList,
+	private final BlockingQueue<FCpacket> queue = new LinkedBlockingQueue<FCpacket>();
+
+	public SendBuffer(ClientReceiver receiver, List<FCpacket> packetList,
 			int windowSize, InetAddress server, FileCopyClient fc) {
-		this.socket = socket;
 		this.packetList = packetList;
 		this.windowSize = windowSize;
 		this.fc = fc;
-		this.server = server;
+		this.receiver = receiver;
 	}
 
 	void receivedAck(int i, long timeReceived) {
@@ -27,52 +26,32 @@ public class SendBuffer {
 		FCpacket packet = packetList.get(i);
 		packet.setValidACK(true);
 		fc.cancelTimer(packet);
-		long timestamp=packet.getTimestamp();
-		if(timestamp < timeReceived){
+		long timestamp = packet.getTimestamp();
+		if (timestamp < timeReceived) {
 			fc.computeTimeoutValue(timeReceived - timestamp);
-		}
-		else{
+		} else {
 			fc.invalidRtts++;
 		}
-		synchronized(this){
-			if (i == sendBase) {	
+		synchronized (this) {
+			if (i == sendBase) {
 				while (packetList.get(sendBase).isValidACK()
 						&& sendBase + windowSize < packetList.size()) {
 					sendBase += 1;
-					final int currentSendBase=sendBase;
-					sendPacket(packetList.get(currentSendBase + windowSize - 1));
+					final int currentSendBase = sendBase;
+					addPacket(packetList.get(currentSendBase + windowSize - 1));
 				}
 			}
 		}
 	}
 
-	void sendPacket(FCpacket packet) {
-		DatagramPacket outgoing;
-		outgoing = new DatagramPacket(packet.getSeqNumBytesAndData(),
-				packet.getSeqNumBytesAndData().length, server,
-				FileCopyServer.SERVER_PORT);
-		fc.testOut("Sending packet: " + packet.getSeqNum());
-		try {
-			socket.send(outgoing);
-		} catch (IOException e) {
-			fc.testOut("Error sending packet: " + e.getMessage());
-		}
-		if(!packet.isValidACK()){
-			packet.setTimestamp(System.nanoTime());
-			fc.startTimer(packet);
-		}
-	}
-
-	void sendPacket(long seqNum) {
+	void addPacket(long seqNum) {
 		FCpacket packet = packetList.get((int) seqNum);
-		if (!packet.isValidACK()) {
-			sendPacket(packet);
-		}
+		addPacket(packet);
 	}
 
-	void sendFirstWindow() {
-		for (int i = 0; i < windowSize && i < packetList.size(); i++) {
-			sendPacket(packetList.get(i));
+	void addPacket(FCpacket packet) {
+		if (!packet.isValidACK() && packet.getSeqNum() >= sendBase) {
+			queue.add(packet);
 		}
 	}
 
@@ -91,6 +70,24 @@ public class SendBuffer {
 			return allAck;
 		} else
 			return false;
+	}
+
+	public BlockingQueue<FCpacket> getQueue() {
+		return queue;
+	}
+
+	@Override
+	public void run() {
+		BlockingQueue<Integer> ackQueue = receiver.getQueue();
+		try {
+			while (true) {
+				int i;
+				i = ackQueue.take();
+				receivedAck(i, System.nanoTime());
+			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 
 }

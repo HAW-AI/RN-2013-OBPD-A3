@@ -4,7 +4,9 @@
  Autoren:
  */
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
@@ -12,6 +14,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 
 public class FileCopyClient extends Thread {
 
@@ -39,6 +42,10 @@ public class FileCopyClient extends Thread {
 
 	private SendBuffer buffer;
 	
+	private DatagramSocket socket;
+	
+	private InetAddress server;
+	
 	private long sumOfRtts=0;
 	private long noOfRtts=0;
 	
@@ -64,16 +71,26 @@ public class FileCopyClient extends Thread {
 				UDP_PACKET_SIZE));
 		System.out.println("Listsize: " + packetList.size());
 		try {
-			InetAddress server = InetAddress.getByName(servername);
-			DatagramSocket socket = new DatagramSocket();
-			this.buffer = new SendBuffer(socket, packetList, windowSize,
-					server, this);
+			server = InetAddress.getByName(servername);
+			socket = new DatagramSocket();
+			ClientReceiver receiver = new ClientReceiver(socket);
+			this.buffer = new SendBuffer(receiver, packetList, windowSize,
+					server,this);
 			Date startTime=new Date();
-			buffer.sendFirstWindow();
-			ClientReceiver receiver = new ClientReceiver(socket, buffer);
 			receiver.setDaemon(true);
 			receiver.start();
+			buffer.setDaemon(true);
+			buffer.start();
+			for (int i = 0; i < windowSize && i < packetList.size(); i++) {
+				sendPacket(packetList.get(i));
+			}
+			BlockingQueue<FCpacket> queue=buffer.getQueue();
 			while (!buffer.isFinished()) {
+				FCpacket packet=queue.take();
+				if(!packet.isValidACK()){
+					sendPacket(packet);
+				}
+				
 			}
 			receiver.interrupt();
 			Date stopTime=new Date();
@@ -89,8 +106,28 @@ public class FileCopyClient extends Thread {
 			e.printStackTrace();
 		} catch (UnknownHostException e) {
 			e.printStackTrace();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 
+	}
+	
+	private void sendPacket(FCpacket packet) {
+		DatagramPacket outgoing;
+		outgoing = new DatagramPacket(packet.getSeqNumBytesAndData(),
+				packet.getSeqNumBytesAndData().length, server,
+				FileCopyServer.SERVER_PORT);
+		testOut("Sending packet: " + packet.getSeqNum());
+		try {
+			socket.send(outgoing);
+		} catch (IOException e) {
+			testOut("Error sending packet: " + e.getMessage());
+		}
+		if(!packet.isValidACK()){
+			packet.setTimestamp(System.nanoTime());
+			startTimer(packet);
+		}
 	}
 	
 	/**
@@ -117,7 +154,7 @@ public class FileCopyClient extends Thread {
 	 */
 	public void timeoutTask(long seqNum) {
 		noOfTimersTimedOut++;
-		buffer.sendPacket(seqNum);
+		buffer.addPacket(seqNum);
 	}
 
 	/**
