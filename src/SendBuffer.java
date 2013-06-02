@@ -23,29 +23,38 @@ public class SendBuffer extends Thread {
 
 	private void receivedAck(int i, long timeReceived) {
 		fc.testOut("Received ack for :" + i + " (sendBase:" + sendBase + ")");
-		FCpacket packet = packetList.get(i);
-		packet.setValidACK(true);
-		fc.cancelTimer(packet);
-		long timestamp = packet.getTimestamp();
-		fc.testOut("Timereceived:"+timeReceived +"; Timestamp:"+timestamp+";SeqNum:"+packet.getSeqNum());
-		
-		if (timestamp < timeReceived) {
-			fc.computeTimeoutValue(timeReceived - timestamp);
-		} else {
-			fc.invalidRtts++;
-		}
-		if (sendBase == 0){
-			sendBase=1;
-			for(int n=1; n < packetList.size() && n< sendBase + windowSize;n++){
-				addPacket(packetList.get(n));
+		if(i >= 0 && i < packetList.size()){
+			FCpacket packet = packetList.get(i);
+			packet.setValidACK(true);
+			fc.cancelTimer(packet);
+			long timestamp = packet.getTimestamp();
+			fc.testOut("Timereceived:"+timeReceived +"; Timestamp:"+timestamp+";SeqNum:"+packet.getSeqNum());
+			
+			if (timestamp < timeReceived) {
+				fc.computeTimeoutValue(timeReceived - timestamp);
+			} else {
+				fc.invalidRtts++;
+			}
+			if (sendBase == 0){
+				sendBase=1;
+				for(int n=1; n < packetList.size() && n< sendBase + windowSize;n++){
+					addPacket(packetList.get(n));
+				}
+			}
+			if (i == sendBase) {
+				while (packetList.get(sendBase).isValidACK()
+						&& sendBase + windowSize < packetList.size()) {
+					sendBase += 1;
+					addPacket(packetList.get(sendBase + windowSize - 1));
+				}
+			}
+			if(isFinished()){
+				byte[] finished="finished".getBytes();
+				queue.add(new FCpacket(-1,finished,finished.length));
 			}
 		}
-		if (i == sendBase) {
-			while (packetList.get(sendBase).isValidACK()
-					&& sendBase + windowSize < packetList.size()) {
-				sendBase += 1;
-				addPacket(packetList.get(sendBase + windowSize - 1));
-			}
+		else {
+			fc.testOut("Ignored invalid ack: "+ i);
 		}
 	}
 
@@ -63,15 +72,18 @@ public class SendBuffer extends Thread {
 	public boolean isFinished() {
 		// I tried to check this every time an ACK is received and store it in a
 		// variable, but then the main thread never ended.
+		
 		if (sendBase + windowSize >= packetList.size()
 				|| windowSize > packetList.size()) {
 			boolean allAck = true;
 			for (int n = sendBase; n < packetList.size(); n++) {
 				if (!packetList.get(n).isValidACK()) {
+					fc.testOut("Failed at: " + n);
 					allAck = false;
 					break;
 				}
 			}
+			fc.testOut("Finish check failed");
 			return allAck;
 		} else
 			return false;

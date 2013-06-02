@@ -87,9 +87,12 @@ public class FileCopyClient extends Thread {
 			buffer.start();
 			sendPacket(packetList.get(0));
 			BlockingQueue<FCpacket> queue=buffer.getQueue();
-			while (!buffer.isFinished()) {
+			boolean finished=false;
+			while (!finished) {
 				FCpacket packet=queue.take();
-				if(!packet.isValidACK()){
+				if (packet.getSeqNum()==-1)
+					finished=true;
+				else if(!packet.isValidACK()){
 					sendPacket(packet);
 				}
 				
