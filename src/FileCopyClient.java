@@ -19,7 +19,7 @@ import java.util.concurrent.BlockingQueue;
 public class FileCopyClient extends Thread {
 
 	// -------- Constants
-	public final static boolean TEST_OUTPUT_MODE = false;
+	public final static boolean TEST_OUTPUT_MODE = true;
 
 	public final int SERVER_PORT = 23000;
 
@@ -52,6 +52,10 @@ public class FileCopyClient extends Thread {
 	private long noOfTimersTimedOut=0;
 	
 	public long invalidRtts=0;
+	
+    private long estimatedRTT = -1;
+    
+    private long deviation = 0;
 
 	// Constructor
 	public FileCopyClient(String serverArg, String sourcePathArg,
@@ -81,9 +85,7 @@ public class FileCopyClient extends Thread {
 			receiver.start();
 			buffer.setDaemon(true);
 			buffer.start();
-			for (int i = 0; i < windowSize && i < packetList.size(); i++) {
-				sendPacket(packetList.get(i));
-			}
+			sendPacket(packetList.get(0));
 			BlockingQueue<FCpacket> queue=buffer.getQueue();
 			while (!buffer.isFinished()) {
 				FCpacket packet=queue.take();
@@ -92,13 +94,14 @@ public class FileCopyClient extends Thread {
 				}
 				
 			}
+			long timeouts=noOfTimersTimedOut;
 			receiver.interrupt();
 			Date stopTime=new Date();
 			if (!socket.isClosed())
 				socket.close();
 			System.out.println("Done");
 			System.out.println("Transfering the file took " + (stopTime.getTime()-startTime.getTime()) + " ms");
-			System.out.println("No of timers timed out: " + noOfTimersTimedOut);
+			System.out.println("No of timers timed out: " + timeouts);
 			System.out.println("Average RTT: " + sumOfRtts/noOfRtts);
 			System.out.println("Invalid RTTs: " + invalidRtts);
 			System.out.println("Last timeout value: " + timeoutValue);
@@ -164,8 +167,18 @@ public class FileCopyClient extends Thread {
 	public void computeTimeoutValue(long sampleRTT) {
 		sumOfRtts+=sampleRTT;
 		noOfRtts++;
-		timeoutValue = Double.valueOf(
-				(1 - 0.1) * timeoutValue + 0.1 * sampleRTT).longValue();
+
+		if (estimatedRTT < 0) {
+            estimatedRTT = sampleRTT;
+        }
+
+        double x = 0.1;
+
+        estimatedRTT = (long) ((1 - x) * estimatedRTT + x * sampleRTT);
+
+        //Deviation verstanden als sicherer Abstand
+        deviation = (long) ((1 - x) * deviation + x * Math.abs(sampleRTT - estimatedRTT));
+        timeoutValue = estimatedRTT + 4 * deviation;
 		testOut("New timeout value: " + timeoutValue);
 	}
 
