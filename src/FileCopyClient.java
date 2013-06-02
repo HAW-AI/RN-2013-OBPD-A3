@@ -125,13 +125,13 @@ public class FileCopyClient extends Thread {
 				packet.getSeqNumBytesAndData().length, server,
 				FileCopyServer.SERVER_PORT);
 		testOut("Sending packet: " + packet.getSeqNum());
+		packet.setTimestamp(System.nanoTime());
 		try {
 			socket.send(outgoing);
 		} catch (IOException e) {
 			testOut("Error sending packet: " + e.getMessage());
 		}
 		if(!packet.isValidACK()){
-			packet.setTimestamp(System.nanoTime());
 			startTimer(packet);
 		}
 	}
