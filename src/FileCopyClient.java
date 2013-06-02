@@ -19,7 +19,7 @@ import java.util.concurrent.BlockingQueue;
 public class FileCopyClient extends Thread {
 
 	// -------- Constants
-	public final static boolean TEST_OUTPUT_MODE = true;
+	public final static boolean TEST_OUTPUT_MODE = false;
 
 	public final int SERVER_PORT = 23000;
 
